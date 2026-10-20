@@ -36,4 +36,4 @@ Source = "https://github.com/igpig1226/wastedRAM"
 where = ["src"]
 
 [tool.setuptools.data-files]
-"share/wastedram/skills/wastedram" = ["skills/wastedram/SKILL.md"]
+"share/wastedram" = ["wastedram/SKILL.md"]
