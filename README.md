@@ -5,9 +5,8 @@
 </p>
 
 <p align="center">
-  <img src="assets/macbook-workspace-hero.jpg" alt="A MacBook running code on a bright desk" width="100%">
+  <img src="assets/wastedram-hero.svg" alt="wastedRAM routes tasks between a local model and cloud AI" width="100%">
 </p>
-<p align="center"><sub>Photo: <a href="https://unsplash.com/license">Unsplash</a></sub></p>
 
 <p align="center">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/Mac-Apple%20Silicon-18242a?style=flat-square">

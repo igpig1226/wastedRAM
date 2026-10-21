@@ -1,3 +1,3 @@
 include LICENSE
-include assets/macbook-workspace-hero.jpg
+include assets/wastedram-hero.svg
 recursive-include wastedram *.md *.py
