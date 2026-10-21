@@ -1,67 +1,59 @@
 # Troubleshooting
 
-## `Set WASTEDRAM_CLOUD_URL to an OpenAI-compatible /v1 endpoint`
+## `cannot reach http://127.0.0.1:8080`
 
-Export the cloud URL:
-
-```bash
-export WASTEDRAM_CLOUD_URL=https://api.deepseek.com/v1
-```
-
-Trailing `/v1` is required. The legacy `PIGMODEL_CLOUD_URL` alias also works.
-
-## `Connection refused` or a timeout on `run`
-
-The local model server is not running. Start it:
+The local server is not running. Start it:
 
 ```bash
-mlx_lm.server --model "$(wastedram model)" --port 8080 --host 127.0.0.1
+./scripts/start_server.sh
 ```
 
-Verify it:
+Check:
 
 ```bash
-curl http://127.0.0.1:8080/v1/models
+curl -s http://127.0.0.1:8080/v1/models
 ```
 
-## Every task reports `source=cloud`
+## `mlx_lm.server not found`
 
-Possible causes:
+Install the runtime:
 
-1. `--local-model` was not passed and `wastedram model` failed to detect memory.
-2. The server is running a different model ID than the one passed.
-3. `is_simple` / `is_medium` did not match the task; long conceptual questions
-   may be classified conservatively.
+```bash
+pip install mlx-lm
+```
 
-Check which model the server actually exposes with `/v1/models`, then pass that
-exact ID.
+## Output stops mid-sentence
+
+The answer hit `--max-tokens` (default 768). The script prints a warning to
+stderr. Raise the cap and retry:
+
+```bash
+python scripts/local_chat.py "..." --max-tokens 2048
+```
+
+## `local server reports no models`
+
+The server started but has not loaded a model yet, or the model failed to load.
+Check the server console for download or memory errors.
 
 ## Mac slows down or swaps
 
-The model does not fit comfortably in unified memory. Step down a tier (see
-`references/models.md`) or reduce the prompt/context length.
+The model does not fit comfortably in unified memory. Step down a tier using
+`references/models.md`, or use a shorter prompt.
 
-## `Cloud response truncated`
+## Garbage or hallucinated answer
 
-The cloud budget was too small. The router already retries with larger budgets;
-if the error persists, the provider truncated a response that genuinely needs
-more room. Raise the cloud model's limit or split the task.
+The local model is small. Usually the prompt is too vague, or the task needs
+more reasoning than a 7B model can do. Tighten the contract: list input types,
+output shape, and every invalid case. If it still fails, do the task with the
+host model.
 
-## `Invalid plan`
+## Wrong / missing code in the answer
 
-Workflow mode asked the cloud for a JSON plan and received malformed output.
-Retry once; if it repeats, the task is probably too ambiguous for the planner.
-Use route mode instead.
+Local output is not verified. Run it, compile it, or test it before use. The
+skill intentionally does not claim correctness.
 
-## `Cloud fallback failed executable acceptance`
+## No network access
 
-The generated code did not pass the bounded AST + execution checks. This is
-usually a real defect (wrong function name, unsafe file write, missing cleanup).
-Read the generated code, fix the prompt, and retry. The check is intentionally
-narrow: passing it does not prove correctness.
-
-## Nothing is being cached
-
-Cache key includes the cloud URL, cloud model, local URL, local model, and the
-task. Changing any of them produces a different key. `--no-cache` disables the
-lookup entirely.
+By design. This skill never calls the internet; it only talks to
+`127.0.0.1`.

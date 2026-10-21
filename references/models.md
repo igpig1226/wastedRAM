@@ -1,7 +1,6 @@
 # Model tiers
 
-`wastedram model` reads `hw.memsize` and picks a conservative MLX model. The
-mapping is:
+Pick a model based on physical unified memory:
 
 | Unified memory | Model | Weight file (approx.) |
 | --- | --- | ---: |
@@ -20,28 +19,37 @@ assuming a larger tier is better.
 
 Weight size is not runtime memory. Add:
 
-- KV cache (grows with context length and batch size)
+- KV cache (grows with context length)
 - the OS and other applications
 - MLX overhead
 
-If the Mac swaps, the fan spins up, or generation slows noticeably, step down a
-tier or shorten the prompt. For 8GB machines prefer the 4bit 7B tier.
+If the Mac swaps, the fan spins up, or generation slows, step down a tier.
 
-## Overriding
+## Starting a tier
 
 ```bash
-mlx_lm.server --model <model-id> --port 8080
-wastedram run "..." --local-model <model-id>
+./scripts/start_server.sh mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
 ```
 
-Pass the same ID to both commands. `--local-url` changes the endpoint if the
-server is not on 8080.
+The second argument is the port:
+
+```bash
+./scripts/start_server.sh mlx-community/Qwen2.5-Coder-14B-Instruct-8bit 8081
+```
+
+Then point the client at it:
+
+```bash
+python scripts/local_chat.py "..." --url http://127.0.0.1:8081
+```
 
 ## Ollama
 
-```bash
-export WASTEDRAM_LOCAL_URL=http://127.0.0.1:11434
-wastedram run "..." --local-model qwen2.5-coder:7b
-```
+Ollama exposes the same OpenAI-compatible route:
 
-Ollama must expose the OpenAI-compatible `/v1` route.
+```bash
+ollama serve
+python scripts/local_chat.py "..." \
+  --url http://127.0.0.1:11434 \
+  --model qwen2.5-coder:7b
+```

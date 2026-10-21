@@ -1,106 +1,118 @@
 ---
 name: wastedram
-description: Route coding and reasoning tasks through a local MLX model on Apple Silicon and fall back to an OpenAI-compatible cloud API only when needed, cutting cloud token spend. Use when the user asks to reduce API cost, run tasks locally, offload simple work to the Mac GPU, or explicitly mentions wastedRAM, local MLX routing, or spare unified memory. Do NOT use for cloud-only work, non-Mac hosts, or tasks that must not leave the machine.
+description: Offload routine text and coding subtasks to a local MLX model on Apple Silicon instead of spending the host model's context and tokens on them. Use when a task is mechanical, well-specified, or easily verifiable — summarizing, translating, explaining a concept, drafting boilerplate, writing a small self-contained function, or generating test cases. Do NOT use for architecture decisions, cross-file refactors, security-sensitive changes, or anything that needs the host model's judgment.
 license: MIT
-compatibility: Apple Silicon Mac, Python 3.10+
+compatibility: Apple Silicon Mac, Python 3.10+, local mlx-lm server
 ---
 
 # wastedRAM
 
-Spend spare Mac memory before cloud tokens. This skill teaches any AI coding agent to split work into two layers:
+Your host model is expensive. This skill lets you hand mechanical subtasks to a local MLX model on the same Mac — no API key, no cloud, no network.
 
-1. **Local MLX** — short factual tasks and conceptual questions run on a local quantized model, cost zero cloud tokens.
-2. **Cloud (OpenAI-compatible)** — planning, synthesis, code acceptance, and anything the local tier cannot finish.
-
-The router decides automatically; the agent calls one script or one function.
+**The rule: delegate the easy, verifiable work. Keep the judgment.**
 
 ## When to use
 
-- The user wants to cut cloud API cost or run work locally.
-- There is a long coding task that can be decomposed (implement, refactor, test, review).
-- The host runs on an Apple Silicon Mac with spare unified memory.
-- The user says "wastedRAM", "local MLX", "spare memory", "save tokens", "离线跑", "省 token".
+Delegate to the local model when the subtask is:
+
+- Self-contained: one prompt in, one answer out, no repo context needed
+- Mechanical: translate, summarize, explain a concept, rename, format, convert
+- Boilerplate: a small function, a regex, a SQL snippet, a test scaffold
+- Independently checkable: you can verify the answer quickly
 
 ## When NOT to use
 
-- The host is not Apple Silicon, or the user forbids local inference.
-- The task requires a cloud-only model capability (large context, vision, tools).
-- The user needs deterministic output that cannot tolerate route/cache variance.
+Keep these yourself:
 
-## Start the local server
+- Architecture, design tradeoffs, debugging across files
+- Security-sensitive code, auth, crypto, credentials
+- Anything needing repo-wide context or the user's intent
+- Final review of generated code
+
+## Prerequisites
 
 ```bash
+pip install mlx-lm
+```
+
+Start the local server once per session:
+
+```bash
+./scripts/start_server.sh
+# or explicitly:
 mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-8bit --port 8080 --host 127.0.0.1
 ```
 
-Pick the model from the tier table below. Keep this process running in a separate terminal.
-
-## Configure
-
-| Variable | Meaning |
-| --- | --- |
-| `WASTEDRAM_CLOUD_URL` | OpenAI-compatible `/v1` endpoint. Required for cloud paths. |
-| `WASTEDRAM_CLOUD_API_KEY` | Cloud credential. Required by most providers. |
-| `WASTEDRAM_LOCAL_URL` | Local endpoint, default `http://127.0.0.1:8080`. |
-
-Pure local hits (`is_simple` / `is_medium`) need no cloud key at all.
-
-## Invoke the skill
-
-### Path A — bundled script (no install, any shell-capable agent)
+Verify it is up:
 
 ```bash
-python scripts/run_task.py "Implement a Python parse_port(value) function with tests" \
-  --cloud-url https://api.deepseek.com/v1 \
-  --cloud-model deepseek-chat \
-  --local-model mlx-community/Qwen2.5-Coder-7B-Instruct-8bit
+curl -s http://127.0.0.1:8080/v1/models
 ```
 
-The answer goes to stdout; a one-line `source=... cloud_tokens=... elapsed_s=...` summary goes to stderr. This is the lowest-friction path for Claude Code, Codex CLI, Cursor, Aider, Windsurf, Cline, and any agent with shell access.
+The model is auto-detected from that endpoint, so you do not need to pass an ID.
 
-### Path B — Python (any agent that can execute Python)
+## How to delegate
 
-```python
-import sys
-sys.path.insert(0, "scripts")
-from run_task import run
-
-result = run(
-    task="Implement a Python parse_port(value) function with tests",
-    cloud_url="https://api.deepseek.com/v1",
-    cloud_model="deepseek-chat",
-    cloud_key="sk-...",              # optional for pure-local tasks
-    local_model="mlx-community/Qwen2.5-Coder-7B-Instruct-8bit",
-    local_url="http://127.0.0.1:8080",
-)
-print(result["content"])
-print(result["source"], result["cloud_tokens"])
+```bash
+python scripts/local_chat.py "Explain what a Python context manager is in 3 sentences"
 ```
 
-`run()` selects the mode itself:
+```bash
+python scripts/local_chat.py "Write a Python function that parses a TCP port from int or decimal string, raising ValueError otherwise. Include tests." --max-tokens 1024
+```
 
-- task contains `workflow`, **or** length > 500 with a code keyword → `mode="workflow"`
-- otherwise → `mode="route"`
+Long input via stdin:
 
-## Return value
+```bash
+cat notes.txt | python scripts/local_chat.py - --max-tokens 1024
+```
 
-| Key | Type | Meaning |
+Options:
+
+| Flag | Default | Meaning |
 | --- | --- | --- |
-| `content` | str | Final answer — use this as the answer. |
-| `source` | str | `local`, `cloud`, `cloud_fallback`, `workflow`, or `cache`. |
-| `cloud_tokens` | int | Total cloud tokens billed. |
-| `cloud_prompt_tokens` / `cloud_completion_tokens` | int | Split usage when the provider reports it. |
-| `local_tokens` / `local_seconds` | int / float | Local usage and wall time. |
-| `elapsed_s` | float | End-to-end seconds. |
-| `code_check` | bool \| None | Generated code passed executable acceptance checks. `None` when no code. |
-| `cloud_calls` | int | Cloud calls made in workflow mode. |
+| `--url` | `http://127.0.0.1:8080` | Local server base URL |
+| `--model` | auto-detected | Model id override |
+| `--max-tokens` | `768` | Output cap; raise it for code |
+| `--temperature` | `0.0` | Keep 0 for deterministic work |
+| `--timeout` | `120` | Seconds before giving up |
 
-## Modes
+The script prints the answer to stdout and a truncation warning to stderr if the output hit the cap. **Always check the warning** — a cut-off answer is worse than no answer.
 
-- **route** (default): one pass. Simple/medium → local; otherwise cloud with an adaptive token budget. Cheapest for single questions.
-- **workflow**: cloud PLAN (merged plan + analysis) → local leaves in parallel → cloud synthesis with executable acceptance. Use for multi-file or "implement + test" requests.
+## Workflow
 
-Choose route unless the task is genuinely decomposable or asks for tests/acceptance.
+1. Split the user's request into judgment work (you) and mechanical work (local).
+2. For each mechanical piece, call `local_chat.py` with a complete, self-contained prompt. Include the exact contract: input types, output shape, error behavior.
+3. Read the answer. Verify it cheaply — run it, compile it, or sanity-check the output.
+4. Fix or rewrite anything wrong. You own the final result.
+5. Compose the final response yourself. Do not paste local output verbatim if it is verbose or off-format.
+
+## Writing good delegation prompts
+
+The local model is small. It needs explicit contracts.
+
+Good:
+
+```text
+Write a Python function parse_port(value) that:
+- accepts int (not bool) or base-10 decimal string
+- returns int in 1..65535
+- raises ValueError for float, bool, None, "443.0", 0, 65536
+Return only the function and a short test block.
+```
+
+Bad:
+
+```text
+Write a port parser
+```
+
+Rules:
+
+- State input types and every invalid case you care about
+- Ask for only what you need (no preamble, no explanation unless asked)
+- For code, ask for a minimal runnable block plus tests
+- Keep prompts under a few hundred words; split larger tasks
 
 ## Model tiers
 
@@ -113,34 +125,23 @@ Choose route unless the task is genuinely decomposable or asks for tests/accepta
 | 65–127GB | `mlx-community/Qwen2.5-72B-Instruct-4bit` |
 | ≥128GB | `mlx-community/Qwen2.5-72B-Instruct-8bit` |
 
-Weight size is not runtime memory. Context, the OS, and other apps also need room. If the Mac swaps or slows, step down a tier or shorten context.
-
-## How it saves tokens
-
-- Simple factual and conceptual requests never reach the cloud.
-- Cloud prompts are compressed and use adaptive budgets (start small, step up only on truncation).
-- Exact-match cache prevents duplicate calls.
-- Workflow merges planning and analysis into one cloud call, then runs local leaves concurrently.
-- Local failures fall back to cloud rather than failing the task.
-
-Actual savings depend on task mix, cache hit rate, and the provider's pricing.
+Weight size is not runtime memory. If the Mac swaps or slows, step down a tier. Pass the chosen ID to `start_server.sh`.
 
 ## Important rules
 
-- Never paste API keys into the task text; they would be sent to the cloud and cached.
-- The skill is not a general correctness guarantee. Bounded code checks (AST + execution harness) catch obvious breakage, not design errors. Review the final diff yourself.
-- Do not claim a cloud saving without reading `cloud_tokens` from the result.
-- If `source="cloud_fallback"`, the local tier was attempted and failed. Report that honestly.
+- Never send secrets, credentials, or private user data to the local model unnecessarily — it is local, but do not paste keys into prompts anyway.
+- The local model is not a correctness guarantee. Verify every generated function before using it.
+- Do not claim you delegated something unless you actually called the script.
+- If the server is down, either start it or do the task yourself. Do not silently fail.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `Set WASTEDRAM_CLOUD_URL...` | Cloud URL missing | Pass `--cloud-url` or export `WASTEDRAM_CLOUD_URL`. |
-| `connection refused` on run | Local server not started | Start `mlx_lm.server` on port 8080. |
-| Every task is `cloud` | Local model not passed or server down | Pass `--local-model`, check `/v1/models`. |
-| Mac slows or swaps | Model too large for memory | Step down a tier or reduce context. |
-| `Cloud response truncated` | Budget too small and no adaptive step-up | Retry; if persistent, raise the cloud model's max tokens. |
-| Wrong / hallucinated local answer | Medium tier misfire | Disable local with `--local-model ""`, or report the task. |
+| `cannot reach http://127.0.0.1:8080` | Server not running | `./scripts/start_server.sh` |
+| `mlx_lm.server not found` | mlx-lm missing | `pip install mlx-lm` |
+| Output ends mid-sentence | Hit `--max-tokens` | Raise it and retry |
+| Mac slows or swaps | Model too large | Step down a tier |
+| Garbage or hallucinated answer | Prompt too vague or task too hard | Tighten the contract or do it yourself |
 
-Full detail: [references/models.md](references/models.md), [references/troubleshooting.md](references/troubleshooting.md).
+More: [references/models.md](references/models.md), [references/troubleshooting.md](references/troubleshooting.md).
