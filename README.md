@@ -1,11 +1,11 @@
+<h1 align="center">Don't Waste Your MacBook</h1>
+
 <p align="center">
-  <img src="assets/wastedram-hero.svg" alt="wastedRAM: put spare Mac memory to work with local AI" width="100%">
+  Your Mac has memory you paid for. Put it to work.
 </p>
 
-<h1 align="center">wastedRAM</h1>
-
 <p align="center">
-  Put spare Mac memory to work on local AI tasks. Spend cloud tokens where they matter.
+  <img src="assets/wastedram-hero.svg" alt="wastedRAM: local AI for the Mac memory you already own" width="100%">
 </p>
 
 <p align="center">
@@ -15,7 +15,9 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-5c8f78?style=flat-square">
 </p>
 
-wastedRAM is an AI coding agent skill and Python package for Apple Silicon Macs. It routes short factual and conceptual questions to a local model, and sends other tasks to an OpenAI-compatible cloud API. For larger coding tasks, its optional workflow mode lets the cloud plan and integrate work while local models handle small, independent pieces. Exact-match caching can avoid repeat calls.
+**Can't fit a huge local model on your Mac?** You can still use its memory. wastedRAM recommends a smaller local model based on your Mac's unified memory, routes short factual and conceptual tasks to it, and sends other tasks to an OpenAI-compatible cloud API. For larger coding tasks, its optional workflow mode lets the cloud plan and integrate work while local models handle small, independent pieces. Exact-match caching can avoid repeat calls.
+
+**That memory has a price.** On Apple's U.S. store, otherwise matching 13-inch M5 MacBook Air configurations cost [$1,399 with 16 GB](https://www.apple.com/shop/buy-mac/macbook-air/13-inch-midnight-m5-chip-10-core-cpu-10-core-gpu-16gb-memory-512gb-storage) and [$1,699 with 32 GB](https://www.apple.com/shop/buy-mac/macbook-air/13-inch-midnight-m5-chip-10-core-cpu-10-core-gpu-32gb-memory-512gb-storage). Doubling the memory adds **$300, about 21%** of the 16 GB MacBook's price. Prices vary by configuration and region. Don't leave the memory you already bought idle.
 
 Use it from a CLI, a Python agent, or a repository checkout. It works with any host that can run shell commands or Python, including Claude Code, Codex CLI, Cursor, Aider, Windsurf, and Cline.
 
