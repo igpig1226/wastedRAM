@@ -1,3 +1,0 @@
-include LICENSE
-include assets/wastedram-hero.svg
-recursive-include wastedram *.md *.py

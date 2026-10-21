@@ -12,7 +12,7 @@ Spend spare Mac memory before cloud tokens. This skill teaches any AI coding age
 1. **Local MLX** — short factual tasks and conceptual questions run on a local quantized model, cost zero cloud tokens.
 2. **Cloud (OpenAI-compatible)** — planning, synthesis, code acceptance, and anything the local tier cannot finish.
 
-The router decides automatically; the agent only calls one function.
+The router decides automatically; the agent calls one script or one function.
 
 ## When to use
 
@@ -27,21 +27,13 @@ The router decides automatically; the agent only calls one function.
 - The task requires a cloud-only model capability (large context, vision, tools).
 - The user needs deterministic output that cannot tolerate route/cache variance.
 
-## Install
-
-```bash
-pip install 'wastedram[mlx] @ git+https://github.com/igpig1226/wastedRAM.git'
-```
-
-Until a PyPI release exists. Requires Python 3.10+.
-
 ## Start the local server
 
 ```bash
-mlx_lm.server --model "$(wastedram model)" --port 8080 --host 127.0.0.1
+mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-8bit --port 8080 --host 127.0.0.1
 ```
 
-`wastedram model` prints the recommended MLX model for this Mac's unified memory. Keep this process running in a separate terminal.
+Pick the model from the tier table below. Keep this process running in a separate terminal.
 
 ## Configure
 
@@ -51,22 +43,27 @@ mlx_lm.server --model "$(wastedram model)" --port 8080 --host 127.0.0.1
 | `WASTEDRAM_CLOUD_API_KEY` | Cloud credential. Required by most providers. |
 | `WASTEDRAM_LOCAL_URL` | Local endpoint, default `http://127.0.0.1:8080`. |
 
-Legacy `PIGMODEL_*` aliases still work. Pure local hits (`is_simple` / `is_medium`) need no cloud key at all.
+Pure local hits (`is_simple` / `is_medium`) need no cloud key at all.
 
 ## Invoke the skill
 
-### Path A — CLI (works in any agent that can run shell)
+### Path A — bundled script (no install, any shell-capable agent)
 
 ```bash
-wastedram run "Implement a Python parse_port(value) function with tests"
+python scripts/run_task.py "Implement a Python parse_port(value) function with tests" \
+  --cloud-url https://api.deepseek.com/v1 \
+  --cloud-model deepseek-chat \
+  --local-model mlx-community/Qwen2.5-Coder-7B-Instruct-8bit
 ```
 
 The answer goes to stdout; a one-line `source=... cloud_tokens=... elapsed_s=...` summary goes to stderr. This is the lowest-friction path for Claude Code, Codex CLI, Cursor, Aider, Windsurf, Cline, and any agent with shell access.
 
-### Path B — Python (works in any agent that can execute Python)
+### Path B — Python (any agent that can execute Python)
 
 ```python
-from wastedram.skill_entry import run
+import sys
+sys.path.insert(0, "scripts")
+from run_task import run
 
 result = run(
     task="Implement a Python parse_port(value) function with tests",
@@ -85,15 +82,7 @@ print(result["source"], result["cloud_tokens"])
 - task contains `workflow`, **or** length > 500 with a code keyword → `mode="workflow"`
 - otherwise → `mode="route"`
 
-### Path C — bundled script (no install, repo checkout only)
-
-```bash
-python wastedram/scripts/run_task.py "your task" --cloud-url https://api.deepseek.com/v1
-```
-
 ## Return value
-
-`run()` returns the Router result unchanged:
 
 | Key | Type | Meaning |
 | --- | --- | --- |
@@ -109,13 +98,11 @@ python wastedram/scripts/run_task.py "your task" --cloud-url https://api.deepsee
 ## Modes
 
 - **route** (default): one pass. Simple/medium → local; otherwise cloud with an adaptive token budget. Cheapest for single questions.
-- **workflow**: cloud PLAN (merged plan + analysis) → local leaves in parallel → cloud synthesis with executable acceptance. Use for multi-file or "implement + test" requests. More cloud tokens per task than route, but fewer round trips and higher success on code tasks.
+- **workflow**: cloud PLAN (merged plan + analysis) → local leaves in parallel → cloud synthesis with executable acceptance. Use for multi-file or "implement + test" requests.
 
 Choose route unless the task is genuinely decomposable or asks for tests/acceptance.
 
 ## Model tiers
-
-`wastedram model` maps unified memory to a conservative MLX model:
 
 | Unified memory | Model |
 | --- | --- |
@@ -149,11 +136,11 @@ Actual savings depend on task mix, cache hit rate, and the provider's pricing.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `Set WASTEDRAM_CLOUD_URL...` | Cloud URL missing | Export `WASTEDRAM_CLOUD_URL`. |
+| `Set WASTEDRAM_CLOUD_URL...` | Cloud URL missing | Pass `--cloud-url` or export `WASTEDRAM_CLOUD_URL`. |
 | `connection refused` on run | Local server not started | Start `mlx_lm.server` on port 8080. |
 | Every task is `cloud` | Local model not passed or server down | Pass `--local-model`, check `/v1/models`. |
 | Mac slows or swaps | Model too large for memory | Step down a tier or reduce context. |
 | `Cloud response truncated` | Budget too small and no adaptive step-up | Retry; if persistent, raise the cloud model's max tokens. |
-| Wrong / hallucinated local answer | Medium tier misfire | Pass `--mode route --local-model ""` to disable local, or report the task. |
+| Wrong / hallucinated local answer | Medium tier misfire | Disable local with `--local-model ""`, or report the task. |
 
 Full detail: [references/models.md](references/models.md), [references/troubleshooting.md](references/troubleshooting.md).
